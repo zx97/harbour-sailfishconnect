@@ -51,14 +51,14 @@ RunCommand | :heavy_check_mark: | Run user-defined commands on your computer.
 RemoteCommands | :heavy_check_mark: | Let user-defined commands run on your phone.
 RemoteSystemVolume | :heavy_check_mark: | :sound: Control system volume of your computer.
 SMS | :construction: | :speech_balloon: Read conversations and send SMS messages from your computer.
-Contacts | :o: | :busts_in_silhouette: Share contacts with your computer.
+Contacts | :heavy_check_mark: | :busts_in_silhouette: Share contacts with your computer (the daemon needs the privileged group).
 Sftp | :heavy_check_mark: | :open_file_folder: Provide access to local files from your computer.
 FindThisDevice | :heavy_check_mark: | :vibration_mode: Ring the phone to find it (stops after one minute).
 SystemVolume | :o: | :sound: Share control of system volume of your phone.
-ReceiseNotifications | :o: | Receive notifications of your computer.
+ReceiveNotifications | :heavy_check_mark: | Receive notifications of your computer.
 MprisReceiver | :o: | :play_or_pause_button: Share multimedia player control with your computer.
 Presenter | :o: | Use device to control presentation
-ConnectivityReport | :o: | Share connectivity report
+ConnectivityReport | :heavy_check_mark: | Share connectivity report
 
 ### Core
 * Pairing

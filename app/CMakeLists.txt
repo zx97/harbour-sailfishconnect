@@ -45,6 +45,7 @@ add_static_plugins_lib(
     SailfishSms
     ReceiveNotifications
     ConnectivityReport
+    SystemVolume
 )
 
 # plugin clients

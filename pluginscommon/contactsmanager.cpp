@@ -115,8 +115,11 @@ QMap<QString, QString> SailfishOsContactsManager::exportVCards(const QStringList
 
     QSqlQuery dataQuery(m_db);
     if (!dataQuery.exec(QStringLiteral(
-            "SELECT contactId, modified, displayLabel, firstName, lastName"
-            " FROM Contacts"))) {
+            "SELECT c.contactId, c.modified, d.displayLabel,"
+            " n.firstName, n.lastName"
+            " FROM Contacts c"
+            " LEFT JOIN DisplayLabels d ON d.contactId = c.contactId"
+            " LEFT JOIN Names n ON n.contactId = c.contactId"))) {
         qCCritical(logger) << "Getting contact details failed:"
                            << dataQuery.lastError().text();
         return {};
@@ -145,7 +148,7 @@ QMap<QString, QString> SailfishOsContactsManager::exportVCards(const QStringList
             id);
         vcf.addRawProperty(
             QStringLiteral("X-KDECONNECT-TIMESTAMP"),
-            QString::number(modified.toMSecsSinceEpoch()));
+            QString::number(modified.isValid() ? modified.toMSecsSinceEpoch() : 0));
 
         result.insert(id, vcf.result());
     }
@@ -157,9 +160,10 @@ QString SailfishOsContactsManager::lookUpName(const QString& phoneNumber)
 {
     QSqlQuery dataQuery(m_db);
     dataQuery.prepare(QStringLiteral(
-        "SELECT displayLabel FROM Contacts"
-        " JOIN Phonenumbers ON Phonenumbers.contactId == Contacts.contactId"
-        " WHERE Phonenumbers.phoneNumber == ?"));
+        "SELECT d.displayLabel FROM Contacts c"
+        " JOIN DisplayLabels d ON d.contactId = c.contactId"
+        " JOIN PhoneNumbers p ON p.contactId = c.contactId"
+        " WHERE p.phoneNumber = ?"));
     dataQuery.bindValue(0, phoneNumber);
 
     if (!dataQuery.exec()) {
