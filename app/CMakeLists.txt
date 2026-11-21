@@ -43,6 +43,7 @@ add_static_plugins_lib(
     SftpServer
     FindThisDevice
     SailfishSms
+    ReceiveNotifications
 )
 
 # plugin clients

@@ -1,0 +1,23 @@
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Email": "zx97@users.noreply.github.com",
+                "Name": "Manuel FLURY"
+            }
+        ],
+        "Description": "Show notifications sent by the peer",
+        "EnabledByDefault": true,
+        "Icon": "preferences-desktop-notification",
+        "Id": "sailfishconnect_receivenotifications",
+        "License": "GPL",
+        "Name": "Receive notifications",
+        "ServiceTypes": [
+            "KdeConnect/Plugin"
+        ],
+        "Version": "0.1"
+    },
+    "X-KdeConnect-SupportedPacketType": [
+        "kdeconnect.notification"
+    ]
+}

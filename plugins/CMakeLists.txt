@@ -12,6 +12,7 @@ add_subdirectory(telephony)
 add_subdirectory(sftpserver)
 add_subdirectory(sf_findthisdevice)
 add_subdirectory(sf_sms)
+add_subdirectory(sf_receivenotifications)
 
 add_subdirectory(sf_sendnotifications)
 add_subdirectory(sf_share)
