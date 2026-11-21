@@ -26,6 +26,9 @@
 * Openrepos: https://openrepos.net/content/r1tschy/sailfish-connect
 * Harbour: *in the future* (when app is stable)
 
+Some plugins need a device-side permission or service (contacts database,
+oFono for SMS): see [doc/device-setup.md](doc/device-setup.md).
+
 ## KDE Connect Clients
 
 * [KDE Connect KDE](https://github.com/KDE/kdeconnect-kde): Desktop client mainly written for KDE
@@ -54,7 +57,7 @@ SMS | :construction: | :speech_balloon: Read conversations and send SMS messages
 Contacts | :heavy_check_mark: | :busts_in_silhouette: Share contacts with your computer (the daemon needs the privileged group).
 Sftp | :heavy_check_mark: | :open_file_folder: Provide access to local files from your computer.
 FindThisDevice | :heavy_check_mark: | :vibration_mode: Ring the phone to find it (stops after one minute).
-SystemVolume | :o: | :sound: Share control of system volume of your phone.
+SystemVolume | :heavy_check_mark: | :sound: Share control of system volume of your phone.
 ReceiveNotifications | :heavy_check_mark: | Receive notifications of your computer.
 MprisReceiver | :o: | :play_or_pause_button: Share multimedia player control with your computer.
 Presenter | :heavy_check_mark: | Use your phone to move the pointer of the computer.
@@ -86,7 +89,12 @@ ConnectivityReport | :heavy_check_mark: | Share connectivity report
 
 ## Known Issues
 
-* LAN: A connection through USB-Ethernet and develeper mode is not possible.
+* LAN: A connection through USB-Ethernet and developer mode is not possible.
+* LAN: Nothing is encrypted. The SFTP password and the pairing packets travel
+  in clear text on the local network.
+* Presenter: the pointer overlay of the desktop client is a full screen
+  translucent window; on some NVIDIA setups each appearance makes the screen
+  flicker black for a moment. This comes from the desktop side.
 
 ## Credits
 

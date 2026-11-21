@@ -75,8 +75,13 @@ void ConnmanWatcher::handleState(const QString &state)
 
     qCInfo(loggerNetwork) << "ConnMan state changed to" << state;
     if (state == QLatin1String("online")) {
-        // Introduce ourselves in the (possibly new) network.
-        Daemon::instance()->forceOnNetworkChange();
+        // Introduce ourselves in the (possibly new) network. The daemon sets up
+        // its link providers from its own zero timer, which is still pending
+        // while this constructor runs: wait for the event loop, otherwise the
+        // announce is sent to no provider at all.
+        QTimer::singleShot(0, this, []() {
+            Daemon::instance()->forceOnNetworkChange();
+        });
     }
 }
 

@@ -31,8 +31,11 @@ Page {
         if (!device) {
             return
         }
+        // Thousandths of the screen, as integers: the D-Bus signature has to
+        // stay stable whatever the value is.
         device.pluginCallWithArgs(
-            "sailfishconnect_presenter", "moveCursor", [ dx, dy ])
+            "sailfishconnect_presenter", "moveCursor",
+            [ Math.round(dx * 1000), Math.round(dy * 1000) ])
     }
 
     PageHeader {
