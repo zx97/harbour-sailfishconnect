@@ -31,11 +31,11 @@ Page {
         if (!device) {
             return
         }
-        // Thousandths of the screen, as integers: the D-Bus signature has to
-        // stay stable whatever the value is.
+        // The delta travels in a map so that the D-Bus signature stays
+        // stable whatever numeric type the values get.
         device.pluginCallWithArgs(
             "sailfishconnect_presenter", "moveCursor",
-            [ Math.round(dx * 1000), Math.round(dy * 1000) ])
+            [ { "dx": dx, "dy": dy } ])
     }
 
     PageHeader {

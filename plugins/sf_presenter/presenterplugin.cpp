@@ -43,12 +43,14 @@ QString PresenterPlugin::dbusPath() const
         .arg(device()->id());
 }
 
-void PresenterPlugin::moveCursor(int dx, int dy)
+void PresenterPlugin::moveCursor(const QVariantMap &delta)
 {
     // The protocol carries the delta as a fraction of the screen.
     NetworkPacket np(packetTypePresenter);
-    np.set(QStringLiteral("dx"), dx / 1000.0);
-    np.set(QStringLiteral("dy"), dy / 1000.0);
+    np.set(QStringLiteral("dx"),
+           delta.value(QStringLiteral("dx")).toDouble());
+    np.set(QStringLiteral("dy"),
+           delta.value(QStringLiteral("dy")).toDouble());
     sendPacket(np);
 }
 

@@ -38,10 +38,11 @@ public:
     QString dbusPath() const override;
 
 public Q_SLOTS:
-    /// Moves the peer pointer. The deltas are thousandths of the peer screen
-    /// size, as integers: a QML number with a zero fraction is marshalled as
-    /// an int and would not match a floating point signature.
-    Q_SCRIPTABLE void moveCursor(int dx, int dy);
+    /// Moves the peer pointer by a fraction of the peer screen size.
+    ///
+    /// The delta travels in a map: its D-Bus signature (a{sv}) never changes,
+    /// whatever numeric type QML marshals for the values.
+    Q_SCRIPTABLE void moveCursor(const QVariantMap &delta);
 
     /// Hides the peer pointer.
     Q_SCRIPTABLE void stop();
