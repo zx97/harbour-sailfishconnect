@@ -269,6 +269,13 @@ Page {
                 }
                 PluginAction {
                     device: _device
+                    title: i18n("Use as presenter")
+                    icon: "image://theme/icon-m-file-video"
+                    pluginId: "Presenter"
+                    onClicked: openPage(Qt.resolvedUrl("PresenterPage.qml"))
+                }
+                PluginAction {
+                    device: _device
                     title: i18n("Change volume")
                     icon: "image://theme/icon-m-speaker"
                     pluginId: "RemoteSystemVolume"

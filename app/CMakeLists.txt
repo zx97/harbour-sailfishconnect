@@ -46,6 +46,7 @@ add_static_plugins_lib(
     ReceiveNotifications
     ConnectivityReport
     SystemVolume
+    Presenter
 )
 
 # plugin clients

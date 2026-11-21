@@ -62,11 +62,21 @@ void checkForDbusError(const QDBusPendingCall& async) {
 
 void DeviceApi::pluginCall(const QString& plugin, const QString& method)
 {
+    pluginCallWithArgs(plugin, method, {});
+}
+
+void DeviceApi::pluginCallWithArgs(
+        const QString& plugin, const QString& method,
+        const QVariantList& arguments)
+{
     QDBusMessage msg = QDBusMessage::createMethodCall(
-        QStringLiteral("org.kde.kdeconnect"), 
+        QStringLiteral("org.kde.kdeconnect"),
         QStringLiteral("/modules/kdeconnect/devices/") % id() % QChar::fromLatin1('/') % plugin,
-        QStringLiteral("org.kde.kdeconnect.device.") + plugin, 
+        QStringLiteral("org.kde.kdeconnect.device.") + plugin,
         method);
+    for (const QVariant& argument : arguments) {
+        msg << argument;
+    }
     checkForDbusError(QDBusConnection::sessionBus().asyncCall(msg));
 }
 

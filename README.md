@@ -57,7 +57,7 @@ FindThisDevice | :heavy_check_mark: | :vibration_mode: Ring the phone to find it
 SystemVolume | :o: | :sound: Share control of system volume of your phone.
 ReceiveNotifications | :heavy_check_mark: | Receive notifications of your computer.
 MprisReceiver | :o: | :play_or_pause_button: Share multimedia player control with your computer.
-Presenter | :o: | Use device to control presentation
+Presenter | :heavy_check_mark: | Use your phone to move the pointer of the computer.
 ConnectivityReport | :heavy_check_mark: | Share connectivity report
 
 ### Core

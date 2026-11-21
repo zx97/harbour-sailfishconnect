@@ -15,6 +15,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <QVariantList>
+
 #include <dbusinterfaces.h>
 #include <core/kdeconnectpluginconfig.h>
 
@@ -191,6 +193,13 @@ public:
     }
 
     Q_SCRIPTABLE void pluginCall(const QString& plugin, const QString& method);
+
+    // Same as pluginCall, with arguments marshalled in order. The method
+    // signature has to match the plugin slot types (a QML number arrives as
+    // a double).
+    Q_SCRIPTABLE void pluginCallWithArgs(
+            const QString& plugin, const QString& method,
+            const QVariantList& arguments);
 
 Q_SIGNALS:
     void pluginsChangedProxy();
