@@ -40,14 +40,14 @@ static const QString PACKAGE_TYPE_CONTACTS_RESPONSE_UIDS_TIMESTAMPS = QStringLit
 static const QString PACKET_TYPE_CONTACTS_RESPONSE_VCARDS = QStringLiteral("kdeconnect.contacts.response_vcards");
 
 
-bool ContactsPlugin::receivePacket(const NetworkPacket& np)
+void ContactsPlugin::receivePacket(const NetworkPacket& np)
 {
     if (np.type() == PACKET_TYPE_CONTACTS_REQUEST_ALL_UIDS_TIMESTAMP) {
         NetworkPacket resultNp(PACKAGE_TYPE_CONTACTS_RESPONSE_UIDS_TIMESTAMPS);
 
         auto times = ContactsManager::instance().getLastModifiedTimes();
         if (times.isEmpty())
-            return true;
+            return;
 
         for (auto iter = times.begin(); iter != times.end(); ++iter) {
             resultNp.set(iter.key(), iter.value().toMSecsSinceEpoch());
@@ -55,16 +55,16 @@ bool ContactsPlugin::receivePacket(const NetworkPacket& np)
 
         resultNp.set(QStringLiteral("uids"), times.keys());
         sendPacket(resultNp);
-        return true;
+        return;
     }
 
     if (np.type() == PACKET_TYPE_CONTACTS_REQUEST_VCARDS_BY_UIDS) {
         NetworkPacket resultNp(PACKET_TYPE_CONTACTS_RESPONSE_VCARDS);
 
         auto vcards = ContactsManager::instance().exportVCards(
-            np.get<QStringList>("uids"), device()->id());
+            np.get<QStringList>(QStringLiteral("uids")), device()->id());
         if (vcards.isEmpty())
-            return true;
+            return;
 
         for (auto iter = vcards.begin(); iter != vcards.end(); ++iter) {
             resultNp.set(iter.key(), iter.value());
@@ -72,10 +72,7 @@ bool ContactsPlugin::receivePacket(const NetworkPacket& np)
 
         resultNp.set(QStringLiteral("uids"), vcards.keys());
         sendPacket(resultNp);
-        return true;
     }
-
-    return false;
 }
 
 #include "contactsplugin.moc"

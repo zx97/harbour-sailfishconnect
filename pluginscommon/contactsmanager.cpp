@@ -17,6 +17,7 @@
 
 #include "contactsmanager.h"
 
+#include <QDir>
 #include <QLoggingCategory>
 #include <QSqlError>
 #include <QSqlQuery>
@@ -28,8 +29,11 @@ namespace SailfishConnect {
 
 static Q_LOGGING_CATEGORY(logger, "kdeconnect.contactsmanager");
 
-static QString QTCONTACTS_SQLITE_STORE = QStringLiteral(
-    "/home/nemo/.local/share/system/Contacts/qtcontacts-sqlite/contacts.db");
+// The contacts database lives in the privileged data directory. The daemon
+// is a member of the "privileged" group so it can read it directly.
+static QString QTCONTACTS_SQLITE_STORE =
+    QDir::homePath() % QChar::fromLatin1('/')
+        % QStringLiteral(".local/share/system/privileged/Contacts/qtcontacts-sqlite/contacts.db");
 
 namespace {
 

@@ -33,7 +33,7 @@ add_static_plugins_lib(
   PREFIX sailfishconnect
   PLUGINS
     BatteryReport
-#    Contacts
+    Contacts
     Clipboard
     MprisRemote
     SendNotifications
@@ -44,6 +44,7 @@ add_static_plugins_lib(
     FindThisDevice
     SailfishSms
     ReceiveNotifications
+    ConnectivityReport
 )
 
 # plugin clients
