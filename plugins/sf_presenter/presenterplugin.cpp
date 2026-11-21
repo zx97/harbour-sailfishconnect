@@ -39,7 +39,7 @@ void PresenterPlugin::receivePacket(const NetworkPacket &np)
 
 QString PresenterPlugin::dbusPath() const
 {
-    return QStringLiteral("/modules/kdeconnect/devices/%1/presenter")
+    return QStringLiteral("/modules/kdeconnect/devices/%1/sailfishconnect_presenter")
         .arg(device()->id());
 }
 

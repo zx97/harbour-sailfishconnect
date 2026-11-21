@@ -40,34 +40,64 @@ Page {
         title: i18n("Presenter")
     }
 
-    MouseArea {
-        id: pad
+    // The margins keep the pad away from the screen edges, where the system
+    // back gesture would take over the swipe.
+    Rectangle {
+        id: padFrame
 
         anchors {
             top: header.bottom
             left: parent.left
             right: parent.right
             bottom: controls.top
+            topMargin: Theme.paddingLarge
+            bottomMargin: Theme.paddingLarge
+            leftMargin: Theme.itemSizeSmall
+            rightMargin: Theme.itemSizeSmall
         }
 
-        property real lastX: 0
-        property real lastY: 0
+        radius: Theme.paddingMedium
+        color: Theme.rgba(Theme.highlightBackgroundColor,
+                          pad.pressed ? 0.20 : 0.08)
+        border.width: 1
+        border.color: pad.pressed ? Theme.highlightColor
+                                  : Theme.secondaryHighlightColor
 
-        onPressed: {
-            lastX = mouse.x
-            lastY = mouse.y
+        Label {
+            anchors.centerIn: parent
+            width: parent.width - 2 * Theme.paddingLarge
+            horizontalAlignment: Text.AlignHCenter
+            wrapMode: Text.WordWrap
+            color: Theme.secondaryColor
+            visible: !pad.pressed
+            text: i18n("Move your finger inside this area to move the pointer of the computer")
         }
 
-        onPositionChanged: {
-            if (!pressed) {
-                return
+        MouseArea {
+            id: pad
+
+            anchors.fill: parent
+            preventStealing: true
+
+            property real lastX: 0
+            property real lastY: 0
+
+            onPressed: {
+                lastX = mouse.x
+                lastY = mouse.y
             }
 
-            var dx = (mouse.x - lastX) / width * sensitivity
-            var dy = (mouse.y - lastY) / height * sensitivity
-            lastX = mouse.x
-            lastY = mouse.y
-            page.sendMove(dx, dy)
+            onPositionChanged: {
+                if (!pressed) {
+                    return
+                }
+
+                var dx = (mouse.x - lastX) / width * sensitivity
+                var dy = (mouse.y - lastY) / height * sensitivity
+                lastX = mouse.x
+                lastY = mouse.y
+                page.sendMove(dx, dy)
+            }
         }
     }
 
@@ -92,14 +122,6 @@ Page {
         }
 
         spacing: Theme.paddingMedium
-
-        Label {
-            width: parent.width
-            horizontalAlignment: Text.AlignHCenter
-            wrapMode: Text.WordWrap
-            color: Theme.secondaryColor
-            text: i18n("Swipe on the upper area to move the pointer of the computer")
-        }
 
         Button {
             width: parent.width

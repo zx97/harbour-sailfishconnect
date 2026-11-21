@@ -27,7 +27,8 @@
 class PresenterPlugin : public KdeConnectPlugin
 {
     Q_OBJECT
-    Q_CLASSINFO("D-Bus Interface", "org.kde.kdeconnect.device.presenter")
+    Q_CLASSINFO("D-Bus Interface",
+                "org.kde.kdeconnect.device.sailfishconnect_presenter")
 
 public:
     explicit PresenterPlugin(QObject *parent, const QVariantList &args);

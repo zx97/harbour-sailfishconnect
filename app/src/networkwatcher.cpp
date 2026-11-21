@@ -13,6 +13,7 @@
 #include <QDBusInterface>
 #include <QDBusReply>
 #include <QLoggingCategory>
+#include <QTimer>
 
 #include <daemon.h>
 
@@ -44,6 +45,18 @@ ConnmanWatcher::ConnmanWatcher(QObject *parent)
     if (reply.isValid()) {
         handleState(reply.value().value(QStringLiteral("State")).toString());
     }
+
+    // An announcement can be lost: sent before the interface got its address,
+    // or dropped by a firewall. Re-announce regularly so that discovery heals
+    // itself without waiting for a network change.
+    auto *reannounce = new QTimer(this);
+    reannounce->setInterval(5 * 60 * 1000);
+    connect(reannounce, &QTimer::timeout, this, [this]() {
+        if (m_state == QLatin1String("online")) {
+            Daemon::instance()->forceOnNetworkChange();
+        }
+    });
+    reannounce->start();
 }
 
 void ConnmanWatcher::onPropertyChanged(const QString &name, const QDBusVariant &value)
