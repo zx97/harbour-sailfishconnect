@@ -17,6 +17,7 @@
 
 #include "connectivityreportplugin.h"
 
+#include <QDBusArgument>
 #include <QDBusConnection>
 #include <QDBusMessage>
 #include <QLoggingCategory>
@@ -88,7 +89,12 @@ QVariantMap readProperties(const QString &modem)
     if (reply.type() == QDBusMessage::ErrorMessage) {
         return {};
     }
-    return reply.arguments().value(0).toMap();
+
+    const QVariant value = reply.arguments().value(0);
+    if (value.userType() == qMetaTypeId<QDBusArgument>()) {
+        return qdbus_cast<QVariantMap>(value.value<QDBusArgument>());
+    }
+    return value.toMap();
 }
 
 } // namespace

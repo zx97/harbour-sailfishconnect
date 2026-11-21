@@ -17,12 +17,13 @@
 
 #include "systemvolumeplugin.h"
 
-#include <QDBusArgument>
-#include <QDBusConnection>
-#include <QDBusMessage>
-#include <QDBusObjectPath>
-#include <QDBusVariant>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLoggingCategory>
+#include <QProcess>
+#include <QStringList>
+#include <QTimer>
 
 #include <KPluginFactory>
 
@@ -32,79 +33,169 @@ Q_LOGGING_CATEGORY(loggerSystemVolume, "kdeconnect.plugin.systemvolume")
 
 namespace {
 
-const QString pulseAudioService = QStringLiteral("org.PulseAudio1");
-const QString pulseAudioCorePath = QStringLiteral("/org/pulseaudio/core1");
-const QString pulseAudioCoreInterface = QStringLiteral("org.PulseAudio.Core1");
-const QString pulseAudioDeviceInterface = QStringLiteral("org.PulseAudio.Core1.Device");
-const QString pulseAudioSinkInterface = QStringLiteral("org.PulseAudio.Core1.Sink");
-const QString propertiesInterface = QStringLiteral("org.freedesktop.DBus.Properties");
+const QString pactlBinary = QStringLiteral("pactl");
+const QString packetTypeSystemVolume = QStringLiteral("kdeconnect.systemvolume");
+const QString packetTypeSystemVolumeRequest =
+    QStringLiteral("kdeconnect.systemvolume.request");
 
 // PulseAudio's internal volume unit; the protocol uses percentages.
 constexpr int pulseVolumeNorm = 65536;
 constexpr int protocolMaxVolume = 100;
 
-const QString packetTypeSystemVolume = QStringLiteral("kdeconnect.systemvolume");
-const QString packetTypeSystemVolumeRequest =
-    QStringLiteral("kdeconnect.systemvolume.request");
-
-QVariant callProperties(const QString &path, const QString &method,
-                        const QVariantList &arguments = {})
+// pactl translates its output, including the event names of "subscribe". The
+// C locale keeps the parsing stable whatever the user language is.
+QProcessEnvironment pactlEnvironment()
 {
-    QDBusMessage call = QDBusMessage::createMethodCall(
-        pulseAudioService, path, propertiesInterface, method);
-    for (const QVariant &argument : arguments) {
-        call << argument;
-    }
-    const QDBusMessage reply = QDBusConnection::sessionBus().call(
-        call, QDBus::Block, 2000);
-    if (reply.type() == QDBusMessage::ErrorMessage) {
+    QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
+    environment.insert(QStringLiteral("LC_ALL"), QStringLiteral("C"));
+    environment.insert(QStringLiteral("LANG"), QStringLiteral("C"));
+    return environment;
+}
+
+QString runPactl(const QStringList &arguments)
+{
+    QProcess process;
+    process.setProcessEnvironment(pactlEnvironment());
+    process.start(pactlBinary, arguments);
+    if (!process.waitForFinished(3000)) {
+        qCWarning(loggerSystemVolume) << "pactl timed out:" << arguments;
         return {};
     }
-    return reply.arguments().value(0);
-}
-
-QVariantMap getAll(const QString &path, const QString &interface)
-{
-    const QVariant value = callProperties(path, QStringLiteral("GetAll"), {interface});
-    if (value.userType() == qMetaTypeId<QDBusArgument>()) {
-        return qdbus_cast<QVariantMap>(value.value<QDBusArgument>());
+    if (process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0) {
+        qCWarning(loggerSystemVolume) << "pactl failed:" << arguments
+                                      << process.readAllStandardError();
+        return {};
     }
-    return value.toMap();
-}
-
-int volumePercent(const QVariant &value)
-{
-    QVariantList channels;
-    if (value.userType() == qMetaTypeId<QDBusArgument>()) {
-        channels = qdbus_cast<QVariantList>(value.value<QDBusArgument>());
-    } else {
-        channels = value.toList();
-    }
-    if (channels.isEmpty()) {
-        return 0;
-    }
-
-    const int channel = channels.first().toInt();
-    return qBound(0, qRound(double(channel) * protocolMaxVolume / pulseVolumeNorm),
-                  protocolMaxVolume);
-}
-
-QList<uint> volumeChannels(int percent)
-{
-    const uint value = uint(qRound(double(qBound(0, percent, protocolMaxVolume))
-                                   * pulseVolumeNorm / protocolMaxVolume));
-    // Mono is enough: PulseAudio applies the value to every channel.
-    return {value};
+    return QString::fromUtf8(process.readAllStandardOutput());
 }
 
 } // namespace
 
 SystemVolumePlugin::SystemVolumePlugin(QObject *parent, const QVariantList &args)
     : KdeConnectPlugin(parent, args)
+    , m_refreshTimer(new QTimer(this))
 {
+    m_refreshTimer->setSingleShot(true);
+    m_refreshTimer->setInterval(200);
+    connect(m_refreshTimer, &QTimer::timeout, this,
+            &SystemVolumePlugin::refreshFromPulseAudio);
+}
+
+SystemVolumePlugin::~SystemVolumePlugin()
+{
+    if (m_subscription) {
+        m_subscription->kill();
+        m_subscription->waitForFinished(1000);
+    }
 }
 
 void SystemVolumePlugin::connected()
+{
+    startEventSubscription();
+    sendSinkList();
+}
+
+void SystemVolumePlugin::startEventSubscription()
+{
+    if (m_subscription) {
+        return;
+    }
+
+    m_subscription = new QProcess(this);
+    connect(m_subscription, &QProcess::readyRead, this, [this]() {
+        const QString events = QString::fromUtf8(m_subscription->readAll());
+
+        // pactl subscribe reports every object type, including the client
+        // created by our own pactl calls: following those would make the
+        // refresh feed itself. Only react to the audio objects.
+        static const QStringList relevantObjects{
+            QStringLiteral(" on sink #"), QStringLiteral(" on sink-input #"),
+            QStringLiteral(" on card #"), QStringLiteral(" on server")};
+        for (const QString &object : relevantObjects) {
+            if (events.contains(object)) {
+                // Coalesce bursts of events into one refresh.
+                m_refreshTimer->start();
+                break;
+            }
+        }
+    });
+    connect(m_subscription,
+            static_cast<void (QProcess::*)(int, QProcess::ExitStatus)>(&QProcess::finished),
+            this, [this]() {
+                m_subscription->deleteLater();
+                m_subscription = nullptr;
+            });
+    m_subscription->setProcessEnvironment(pactlEnvironment());
+    m_subscription->start(pactlBinary, {QStringLiteral("subscribe")});
+}
+
+QList<SystemVolumePlugin::Sink> SystemVolumePlugin::readSinks() const
+{
+    QList<Sink> sinks;
+
+    const QString output =
+        runPactl({QStringLiteral("-f"), QStringLiteral("json"), QStringLiteral("list"),
+                  QStringLiteral("sinks")});
+    const QJsonDocument document = QJsonDocument::fromJson(output.toUtf8());
+    if (!document.isArray()) {
+        return sinks;
+    }
+
+    const QString defaultSinkName = defaultSink();
+    for (const QJsonValue &value : document.array()) {
+        const QJsonObject object = value.toObject();
+
+        Sink sink;
+        sink.name = object.value(QStringLiteral("name")).toString();
+        sink.description = object.value(QStringLiteral("description")).toString();
+        sink.muted = object.value(QStringLiteral("mute")).toBool();
+        sink.isDefault = sink.name == defaultSinkName;
+
+        // Take the first channel: all channels are set together.
+        const QJsonObject volume = object.value(QStringLiteral("volume")).toObject();
+        if (!volume.isEmpty()) {
+            const QJsonObject channel = volume.begin().value().toObject();
+            const int value = channel.value(QStringLiteral("value")).toInt();
+            sink.volume = qBound(0, qRound(double(value) * protocolMaxVolume
+                                           / pulseVolumeNorm),
+                                 protocolMaxVolume);
+        }
+
+        if (!sink.name.isEmpty()) {
+            sinks.append(sink);
+        }
+    }
+
+    return sinks;
+}
+
+QString SystemVolumePlugin::defaultSink() const
+{
+    return runPactl({QStringLiteral("get-default-sink")}).trimmed();
+}
+
+void SystemVolumePlugin::sendSinkList()
+{
+    m_sinks = readSinks();
+
+    QVariantList sinkList;
+    for (const Sink &sink : m_sinks) {
+        QVariantMap object;
+        object.insert(QStringLiteral("name"), sink.name);
+        object.insert(QStringLiteral("description"), sink.description);
+        object.insert(QStringLiteral("volume"), sink.volume);
+        object.insert(QStringLiteral("muted"), sink.muted);
+        object.insert(QStringLiteral("maxVolume"), protocolMaxVolume);
+        object.insert(QStringLiteral("enabled"), sink.isDefault);
+        sinkList.append(object);
+    }
+
+    NetworkPacket np(packetTypeSystemVolume);
+    np.set(QStringLiteral("sinkList"), sinkList);
+    sendPacket(np);
+}
+
+void SystemVolumePlugin::refreshFromPulseAudio()
 {
     sendSinkList();
 }
@@ -115,7 +206,6 @@ void SystemVolumePlugin::receivePacket(const NetworkPacket &np)
         return;
     }
 
-    refreshSinks();
     if (np.get<bool>(QStringLiteral("requestSinks"), false)) {
         sendSinkList();
         return;
@@ -127,143 +217,23 @@ void SystemVolumePlugin::receivePacket(const NetworkPacket &np)
     }
 
     if (np.has(QStringLiteral("volume"))) {
-        applyVolume(name, np.get<int>(QStringLiteral("volume")));
+        const int volume =
+            qBound(0, np.get<int>(QStringLiteral("volume")), protocolMaxVolume);
+        runPactl({QStringLiteral("set-sink-volume"), name,
+                  QString::number(volume) + QChar::fromLatin1('%')});
     }
     if (np.has(QStringLiteral("muted"))) {
-        applyMute(name, np.get<bool>(QStringLiteral("muted")));
+        runPactl({QStringLiteral("set-sink-mute"), name,
+                  np.get<bool>(QStringLiteral("muted")) ? QStringLiteral("1")
+                                                        : QStringLiteral("0")});
     }
-}
-
-SystemVolumePlugin::Sink SystemVolumePlugin::readSink(const QString &path) const
-{
-    Sink sink;
-    sink.path = path;
-
-    QVariantMap properties = getAll(path, pulseAudioSinkInterface);
-    const QVariantMap deviceProperties = getAll(path, pulseAudioDeviceInterface);
-    for (auto it = deviceProperties.cbegin(); it != deviceProperties.cend(); ++it) {
-        properties.insert(it.key(), it.value());
+    if (np.has(QStringLiteral("enabled"))
+        && np.get<bool>(QStringLiteral("enabled"))) {
+        runPactl({QStringLiteral("set-default-sink"), name});
     }
 
-    sink.name = properties.value(QStringLiteral("Name")).toString();
-    sink.description = properties.value(QStringLiteral("Description")).toString();
-    sink.volume = volumePercent(properties.value(QStringLiteral("Volume")));
-    sink.muted = properties.value(QStringLiteral("Mute")).toBool();
-    return sink;
-}
-
-void SystemVolumePlugin::refreshSinks()
-{
-    m_sinks.clear();
-
-    const QVariant sinksValue =
-        callProperties(pulseAudioCorePath, QStringLiteral("Get"),
-                       {pulseAudioCoreInterface, QStringLiteral("Sinks")});
-    QList<QDBusObjectPath> sinkPaths;
-    if (sinksValue.userType() == qMetaTypeId<QDBusArgument>()) {
-        const QDBusArgument argument = sinksValue.value<QDBusArgument>();
-        sinkPaths = qdbus_cast<QList<QDBusObjectPath>>(argument);
-    }
-
-    for (const QDBusObjectPath &path : sinkPaths) {
-        const Sink sink = readSink(path.path());
-        if (!sink.name.isEmpty()) {
-            m_sinks.append(sink);
-        }
-    }
-
-    // Forward live volume/mute changes of the sinks (the connection is
-    // idempotent, so this is safe to call on every refresh).
-    for (const Sink &sink : m_sinks) {
-        QDBusConnection::sessionBus().connect(
-            pulseAudioService, sink.path, propertiesInterface,
-            QStringLiteral("PropertiesChanged"), this,
-            SLOT(onPropertiesChanged(QString, QVariantMap, QStringList)));
-    }
-}
-
-void SystemVolumePlugin::sendSinkList()
-{
-    refreshSinks();
-
-    QVariantList sinkList;
-    for (const Sink &sink : m_sinks) {
-        QVariantMap object;
-        object.insert(QStringLiteral("name"), sink.name);
-        object.insert(QStringLiteral("description"), sink.description);
-        object.insert(QStringLiteral("volume"), sink.volume);
-        object.insert(QStringLiteral("muted"), sink.muted);
-        object.insert(QStringLiteral("maxVolume"), protocolMaxVolume);
-        // PulseAudio does not expose the default sink on its D-Bus interface.
-        object.insert(QStringLiteral("enabled"), false);
-        sinkList.append(object);
-    }
-
-    NetworkPacket np(packetTypeSystemVolume);
-    np.set(QStringLiteral("sinkList"), sinkList);
-    sendPacket(np);
-}
-
-QString SystemVolumePlugin::sinkPathForName(const QString &name) const
-{
-    for (const Sink &sink : m_sinks) {
-        if (sink.name == name) {
-            return sink.path;
-        }
-    }
-    return QString();
-}
-
-bool SystemVolumePlugin::applyVolume(const QString &name, int volume)
-{
-    const QString path = sinkPathForName(name);
-    if (path.isEmpty()) {
-        return false;
-    }
-
-    const QVariant value = QVariant::fromValue(volumeChannels(volume));
-    callProperties(path, QStringLiteral("Set"),
-                   {pulseAudioDeviceInterface, QStringLiteral("Volume"), value});
-    return true;
-}
-
-bool SystemVolumePlugin::applyMute(const QString &name, bool muted)
-{
-    const QString path = sinkPathForName(name);
-    if (path.isEmpty()) {
-        return false;
-    }
-
-    callProperties(path, QStringLiteral("Set"),
-                   {pulseAudioDeviceInterface, QStringLiteral("Mute"), muted});
-    return true;
-}
-
-void SystemVolumePlugin::onPropertiesChanged(const QString &interface,
-                                             const QVariantMap &changed,
-                                             const QStringList &invalidated)
-{
-    Q_UNUSED(interface)
-    Q_UNUSED(invalidated)
-
-    const QString name = changed.value(QStringLiteral("Name")).toString();
-    if (name.isEmpty()) {
-        return;
-    }
-
-    NetworkPacket np(packetTypeSystemVolume);
-    np.set(QStringLiteral("name"), name);
-    if (changed.contains(QStringLiteral("Volume"))) {
-        np.set(QStringLiteral("volume"),
-               volumePercent(changed.value(QStringLiteral("Volume"))));
-    }
-    if (changed.contains(QStringLiteral("Mute"))) {
-        np.set(QStringLiteral("muted"),
-               changed.value(QStringLiteral("Mute")).toBool());
-    }
-    if (np.has(QStringLiteral("volume")) || np.has(QStringLiteral("muted"))) {
-        sendPacket(np);
-    }
+    // Report the real state back, pactl clamps the values.
+    m_refreshTimer->start();
 }
 
 #include "systemvolumeplugin.moc"

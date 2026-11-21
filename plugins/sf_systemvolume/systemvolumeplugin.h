@@ -21,41 +21,44 @@
 
 #include <QList>
 #include <QString>
-#include <QVariantMap>
+
+class QProcess;
+class QTimer;
 
 /// Exposes the system audio sinks to the peer and applies its volume changes.
 ///
-/// PulseAudio is reached through its D-Bus interface (org.PulseAudio1).
+/// PulseAudio is driven through pactl: its JSON output is stable and avoids
+/// depending on the optional D-Bus module, which Sailfish OS does not load.
 class SystemVolumePlugin : public KdeConnectPlugin
 {
     Q_OBJECT
 
 public:
     SystemVolumePlugin(QObject *parent, const QVariantList &args);
+    ~SystemVolumePlugin() override;
 
     void connected() override;
     void receivePacket(const NetworkPacket &np) override;
 
 private slots:
     void sendSinkList();
-    void onPropertiesChanged(const QString &interface, const QVariantMap &changed,
-                             const QStringList &invalidated);
+    void refreshFromPulseAudio();
 
 private:
     struct Sink
     {
-        QString path;
         QString name;
         QString description;
         int volume = 0;
         bool muted = false;
+        bool isDefault = false;
     };
 
-    void refreshSinks();
-    Sink readSink(const QString &path) const;
-    QString sinkPathForName(const QString &name) const;
-    bool applyVolume(const QString &name, int volume);
-    bool applyMute(const QString &name, bool muted);
+    QList<Sink> readSinks() const;
+    QString defaultSink() const;
+    void startEventSubscription();
 
     QList<Sink> m_sinks;
+    QProcess *m_subscription = nullptr;
+    QTimer *m_refreshTimer = nullptr;
 };
