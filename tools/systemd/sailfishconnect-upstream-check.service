@@ -1,0 +1,7 @@
+[Unit]
+Description=Check the upstream Sailfish Connect project and our pull request
+
+[Service]
+Type=oneshot
+ExecStart=%h/src/sailfishOS/kdeconnect/tools/check-upstream.sh
+Nice=10

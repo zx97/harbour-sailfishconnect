@@ -1,0 +1,11 @@
+[Unit]
+Description=Periodic check of the upstream Sailfish Connect project
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=6h
+RandomizedDelaySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
